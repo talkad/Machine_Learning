@@ -1,2 +1,4 @@
 .idea/*
 venv/*
+Classification/SVM/*
+Classification/Decision_Tree/*
