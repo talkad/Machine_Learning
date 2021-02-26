@@ -8,7 +8,7 @@ import pickle
 
 
 class Layer:
-    def __init__(self, num_inputs, num_neurons, activation_function):
+    def __init__(self, num_inputs, num_neurons, activation_function, dropout_layer):
         self.weights = 0.01 * np.random.randn(num_inputs, num_neurons)
         self.biases = np.zeros((1, num_neurons))
         self.activation_function = activation_function
@@ -19,6 +19,8 @@ class Layer:
         self.d_weights = None
         self.d_biases = None
         self.d_inputs = None
+
+        self.dropout_layer = dropout_layer
 
     def forward(self, inputs):
         self.inputs = inputs
@@ -31,6 +33,25 @@ class Layer:
         self.d_biases = np.sum(d_values, axis=0, keepdims=True)
         # Gradient on values
         self.d_inputs = np.dot(d_values, self.weights.T)
+
+
+class Dropout_Layer:
+    def __init__(self, rate):
+        self.rate = 1 - rate
+
+        self.inputs = None
+        self.binary_mask = None
+        self.output = None
+        self.d_inputs = None
+
+    def forward(self, inputs):
+        self.inputs = inputs
+        self.binary_mask = np.random.binomial(1, self.rate, size=inputs.shape) / self.rate
+
+        self.output = inputs * self.binary_mask
+
+    def backward(self, dvalues):
+        self.d_inputs = dvalues * self.binary_mask
 
 
 class DNN:
@@ -47,17 +68,20 @@ class DNN:
             if idx == 0:
                 layer.forward(inputs)
             else:
-                layer.forward(self.layers[idx - 1].activation_function.output)
+                layer.forward(self.layers[idx - 1].dropout_layer.output)
 
             layer.activation_function.forward(layer.output)
+            layer.dropout_layer.forward(layer.activation_function.output)
 
-        self.layers[-1].forward(self.layers[-2].activation_function.output)
+        self.layers[-1].forward(self.layers[-2].dropout_layer.output)
 
     def backward_propagation(self, loss_activation):
         self.layers[-1].backward(loss_activation.d_inputs)
 
         for idx, layer in reversed(list(enumerate(self.layers[: -1]))):
-            layer.activation_function.backward(self.layers[idx + 1].d_inputs)
+            layer.dropout_layer.backward(self.layers[idx + 1].d_inputs)
+
+            layer.activation_function.backward(layer.dropout_layer.d_inputs)
             layer.backward(layer.activation_function.d_inputs)
 
     def predict(self, x):
@@ -118,13 +142,13 @@ class DNN:
 
     def show_stats(self):
         fig, axs = plt.subplots(2, sharex=True, sharey=True)
-        num_samples = len(self.acc_list)
+        num_samples = len(self.acc_list) - 1
 
         axs[0].set_title('accuracy')
-        axs[0].plot(range(num_samples), self.acc_list, color='g')
+        axs[0].plot(range(num_samples), self.acc_list[1:], color='g')
 
         axs[1].set_title('loss')
-        axs[1].plot(range(num_samples), self.loss_list, color='r')
+        axs[1].plot(range(num_samples), self.loss_list[1:], color='r')
 
         plt.show()
 
